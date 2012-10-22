@@ -2,14 +2,17 @@ package scheduler;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map.Entry;
+import java.util.NavigableMap;
 import java.util.Random;
+import java.util.TreeMap;
 
 /**
  * A stub for your first scheduler code
  */
 public class Scheduler3 implements Scheduler {
 
-	public static final int K = 100;
+	public static final int K = 20;
 	Random r = new Random();
 	Evaluator eva = new Evaluator();
 
@@ -42,49 +45,41 @@ public class Scheduler3 implements Scheduler {
 			k = maxPermutes;
 		}
 		List<ScheduleChoice[]> pop = new ArrayList<ScheduleChoice[]>();
-		List<ScheduleChoice[]> neighbors = new ArrayList<ScheduleChoice[]>();
-		first = randomRestart(courses, rooms, examPeriod, times);
+		List<ScheduleChoice[]> neighbors;
+		ProbabilisticMap<ScheduleChoice[]> probPop = new ProbabilisticMap<ScheduleChoice[]>();
+		first = randomStartState(courses, rooms, examPeriod, times);
 		int bestScore = eva.violatedConstraints(pProblem, first);
 		ScheduleChoice[] bestSoFar = first;
 		pop.add(first);
-		System.out.println(pop.size());
 		while (pop.size() != 0) {
-			double scoreSum = 0;
 
 			// Get all neighbors of all individuals in population
-			neighbors.clear();
+			probPop.clear();
 			for (ScheduleChoice[] individual : pop) {
-				neighbors.addAll(getAllScheduleChoicePermutationNeighbors(
-						individual, rooms, examPeriod, times));
-			}
-			System.out.println(neighbors.size());
-
-			// Calculate sum of all scores
-			for (ScheduleChoice[] individual : neighbors) {
-				scoreSum += eva.violatedConstraints(pProblem, individual);
+				neighbors = getAllScheduleChoicePermutationNeighbors(
+						individual, rooms, examPeriod, times);
+				// Calculate sum of all scores
+				for (ScheduleChoice[] neighbor : neighbors) {
+					int score = eva.violatedConstraints(pProblem, neighbor);
+					if (score < bestScore) {
+						bestSoFar = neighbor;
+						bestScore = score;
+					}
+					probPop.add(score, neighbor);
+				}
 			}
 
 			// Get next population
 			pop.clear();
-			for (int i = 0; i < neighbors.size() && pop.size() < k; i++) {
-				int score = eva.violatedConstraints(pProblem, neighbors.get(i));
-				if (score < bestScore) {
-					bestSoFar = neighbors.get(i);
-					bestScore = score;
-				}
-
-				// TODO: this distribution is wrong ,assign p to selection over
-				// a set
-				// "setting probability of an element to be returned by a set java"
-				if (r.nextDouble() < (score / scoreSum)) {
-					pop.add(neighbors.get(i));
-				}
+			for (int i = 0; i < probPop.size() && pop.size() < k; i++) {
+				// select k individuals of next generation probabilistically
+				pop.add(probPop.remove());
 			}
+
+			//System.out.println(bestScore);
 			if (bestScore == 0) {
 				return bestSoFar;
 			}
-
-			System.out.println(pop.size());
 		}
 
 		return bestSoFar;
@@ -102,23 +97,23 @@ public class Scheduler3 implements Scheduler {
 			int timeSlot = choice.getTimeSlot();
 			ScheduleChoice permutedChoice;
 			for (int j = 0; j < rooms.length; j++) {
-				if (!room.equals(rooms[j])) {
-					for (int k = 0; k < examPeriod; k++) {
-						if (day != k) {
-							for (int h = 0; h < times; h++) {
-								if (timeSlot != h) {
-									ScheduleChoice[] newState = new ScheduleChoice[currentState.length];
-									System.arraycopy(currentState, 0, newState,
-											0, currentState.length);
-									permutedChoice = new ScheduleChoice(course,
-											rooms[j], k, h);
-									newState[i] = permutedChoice;
-									neighbors.add(newState);
-								}
-							}
+
+				for (int k = 0; k < examPeriod; k++) {
+
+					for (int h = 0; h < times; h++) {
+						if (!room.equals(rooms[j]) || day != k || timeSlot != h) {
+							ScheduleChoice[] newState = new ScheduleChoice[currentState.length];
+							System.arraycopy(currentState, 0, newState, 0,
+									currentState.length);
+							permutedChoice = new ScheduleChoice(course,
+									rooms[j], k, h);
+							newState[i] = permutedChoice;
+							neighbors.add(newState);
 						}
 					}
+
 				}
+
 			}
 
 		}
@@ -132,7 +127,7 @@ public class Scheduler3 implements Scheduler {
 				r.nextInt(examPeriod), r.nextInt(times));
 	}
 
-	private ScheduleChoice[] randomRestart(Course[] courses, Room[] rooms,
+	private ScheduleChoice[] randomStartState(Course[] courses, Room[] rooms,
 			int examPeriod, int times) {
 		ScheduleChoice[] choiceList = new ScheduleChoice[courses.length];
 		for (int i = 0; i < courses.length; i++) {
@@ -144,4 +139,38 @@ public class Scheduler3 implements Scheduler {
 		return choiceList;
 	}
 
+}
+
+class ProbabilisticMap<E> {
+	private final NavigableMap<Double, E> map = new TreeMap<Double, E>();
+	private final Random random;
+	private double total = 0;
+
+	public ProbabilisticMap() {
+		random = new Random();
+	}
+
+	public void add(double weight, E result) {
+		if (weight <= 0)
+			return;
+		total += weight;
+		map.put(total, result);
+	}
+
+	public E remove() {
+		double value = random.nextDouble() * total;
+		Entry<Double, E> entry = map.ceilingEntry(value);
+		map.remove(entry.getKey());
+		total -= entry.getKey();
+		return entry.getValue();
+	}
+
+	public void clear() {
+		map.clear();
+		total = 0;
+	}
+
+	public int size() {
+		return map.size();
+	}
 }

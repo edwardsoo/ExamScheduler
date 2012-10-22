@@ -28,7 +28,7 @@ public class Driver {
 		 * 0.95, which means that most of the time students take very similar
 		 * courses.
 		 */
-		Generator easyProblems = new Generator(30, 2, 500, 0.95);
+		Generator easyProblems = new Generator(20, 2, 500, 0.95);
 		for (int i = 0; i < 3; i++) {
 			arrayOfProblems[i] = easyProblems.generateProblem(i);
 		}
@@ -45,7 +45,7 @@ public class Driver {
 		System.out.println("---STARTING BATCH SOLVE---");
 		Evaluator e = new Evaluator();
 		for (int i = 0; i < 6; i++) {
-			Scheduler myScheduler1 = new Scheduler3();
+			Scheduler myScheduler1 = new Scheduler1();
 			long time = System.currentTimeMillis();
 			ScheduleChoice[] sc = myScheduler1.schedule(arrayOfProblems[i]);
 			long delta = (System.currentTimeMillis() - time) / 1000;
