@@ -45,7 +45,7 @@ public class Driver {
 		System.out.println("---STARTING BATCH SOLVE---");
 		Evaluator e = new Evaluator();
 		for (int i = 0; i < 6; i++) {
-			Scheduler myScheduler1 = new Scheduler1();
+			Scheduler myScheduler1 = new Scheduler3();
 			long time = System.currentTimeMillis();
 			ScheduleChoice[] sc = myScheduler1.schedule(arrayOfProblems[i]);
 			long delta = (System.currentTimeMillis() - time) / 1000;
