@@ -28,7 +28,7 @@ public class Driver {
 		 * 0.95, which means that most of the time students take very similar
 		 * courses.
 		 */
-		Generator easyProblems = new Generator(20, 2, 500, 0.95);
+		Generator easyProblems = new Generator(31, 2, 500, 0.95);
 		for (int i = 0; i < 3; i++) {
 			arrayOfProblems[i] = easyProblems.generateProblem(i);
 		}
@@ -37,7 +37,7 @@ public class Driver {
 		 * This means 60 courses, 4 rooms, 600 students, and a 'crispness' of
 		 * 0.9, which means that most of the time students take similar courses.
 		 */
-		Generator mediumProblems = new Generator(31, 2, 500, 0.95);
+		Generator mediumProblems = new Generator(60, 4, 600, 0.9);
 		for (int i = 3; i < 6; i++) {
 			arrayOfProblems[i] = mediumProblems.generateProblem(i);
 		}

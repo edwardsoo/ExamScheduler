@@ -1,17 +1,21 @@
 package scheduler;
 
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Random;
 
 /**
- * A stub for your first scheduler code
+ * A stub for your first scheduler code Greedy Descent
  */
 public class Scheduler1 implements Scheduler {
 
-	public static final int STEPS_TO_RESTART = 1000;
-	public static final int K = 10;
-	public static final int MAX_RESTART = 100000;
+	public static final int STEPS_TO_RESTART = 5;
+	public static final int RUNS = 300000;
+	public static final boolean USE_TABU_LIST = true;
+	public static final double TABU_LIST_SIZE = 2;
+
 	Random r = new Random();
 	Evaluator eva = new Evaluator();
 
@@ -26,81 +30,122 @@ public class Scheduler1 implements Scheduler {
 	 * @see scheduler.Scheduler#schedule(scheduler.SchedulingProblem)
 	 */
 	public ScheduleChoice[] schedule(SchedulingProblem pProblem) {
-		ScheduleChoice[] currentState = null;
+		LinkedList<ScheduleChoice[]> tabuList = new LinkedList<ScheduleChoice[]>();
+		ScheduleChoice[] currentState, bestSoFar, bestNeighbor;
 		Course[] courses = pProblem.getCourseList();
 		Room[] rooms = pProblem.getRoomList();
 		pProblem.getExamPeriod();
+		List<ScheduleChoice[]> neighbors;
+
 		int examPeriod = pProblem.getExamPeriod();
 		int times = ScheduleChoice.times.length;
-		int steps;
-		int restarts = 0;
+		int localSteps;
+		int run = 0;
+		int currentScore, newScore, bestScore, bestNeighborScore;
 
-		// Calculate n, number of neighbors
-		int n = K;
-		int score;
+		// Generate random complete assignments to exam
+		bestSoFar = currentState = randomRestart(courses, rooms, examPeriod,
+				times);
+		currentScore = bestScore = eva.violatedConstraints(pProblem,
+				currentState);
+		while (true) {
+			localSteps = 0;
 
-		while (restarts < MAX_RESTART) {
-			steps = 0;
+			while (localSteps < STEPS_TO_RESTART) {
 
-			// Generate random complete assignments to exam
-			currentState = randomRestart(courses, rooms, examPeriod, times);
-			int bestScore = Integer.MAX_VALUE;
-			ScheduleChoice[] bestSoFar = null;
-			List<ScheduleChoice[]> neighbors;
-
-			while (steps < STEPS_TO_RESTART) {
+				if (USE_TABU_LIST) {
+					// remove oldest state in tabu list if it is full
+					if (tabuList.size() >= TABU_LIST_SIZE) {
+						tabuList.removeFirst();
+					}
+					tabuList.addLast(currentState);
+				}
 
 				// Get all neighbors by permuting every variable in every exam
-
-				/*
-				 * neighbors = getAllScheduleChoicePermutationNeighbors(
-				 * currentState, rooms, examPeriod, times);
-				 */
+				bestNeighbor = null;
+				bestNeighborScore = Integer.MAX_VALUE;
+				neighbors = getAllScheduleChoicePermutationNeighbors(
+						currentState, rooms, examPeriod, times);
 
 				// Get N neighbors randomly
 
-				neighbors = getNRandomNeighbors(currentState, rooms,
-						examPeriod, times, n);
+				// neighbors = getNRandomNeighbors(currentState, rooms,
+				// examPeriod, times, n);
 
 				// System.out.println(neighbors.size());
 
 				// evaluate all neighbor, keep track of the best one
 				for (ScheduleChoice[] neighbor : neighbors) {
 					// Driver.printSchedule(neighbor);
-					score = eva.violatedConstraints(pProblem, neighbor);
-					if (score < bestScore) {
-						bestScore = score;
-						bestSoFar = neighbor;
+
+					if (USE_TABU_LIST) {
+						// Keep the new if not in tabu list
+						Iterator<ScheduleChoice[]> itr = tabuList.iterator();
+						boolean inTabuList = false;
+						while (itr.hasNext()) {
+							if (equalScheduleChoice(itr.next(), neighbor)) {
+								inTabuList = true;
+								break;
+							}
+						}
+						if (!inTabuList) {
+							// Only evaluate a neighbor if it is not in tabu
+							// list
+							newScore = eva.violatedConstraints(pProblem,
+									neighbor);
+							if (newScore < bestNeighborScore) {
+								bestNeighborScore = newScore;
+								bestNeighbor = neighbor;
+							}
+
+						}
+					} else {
+						newScore = eva.violatedConstraints(pProblem, neighbor);
+						if (newScore < bestNeighborScore) {
+							bestNeighborScore = newScore;
+							bestNeighbor = neighbor;
+						}
 					}
+
 				}
 
-				//System.out.println(bestScore);
-				if (bestScore == 0) {
-					// Found a solution
-					return bestSoFar;
-				}
 
 				// If no neighbor is better, select a random one to be next
 				// state
-				score = eva.violatedConstraints(pProblem, currentState);
-				if (score <= bestScore) {
+				if (currentScore <= bestNeighborScore) {
 					currentState = neighbors.get(r.nextInt(neighbors.size()));
+					currentScore = eva.violatedConstraints(pProblem,
+							currentState);
 				} else {
-					currentState = bestSoFar;
+					currentState = bestNeighbor;
+					currentScore = bestNeighborScore;
 				}
-				steps++;
-			}
-			restarts++;
-		}
 
-		return currentState;
+				if (currentScore < bestScore) {
+					bestSoFar = currentState;
+					bestScore = currentScore;
+				}
+				
+				//System.out.println(bestScore);
+				if (bestScore == 0) {
+					return bestSoFar;
+				}
+
+				localSteps++;
+				run++;
+				if (run > RUNS) {
+					return bestSoFar;
+				}
+			}
+			//System.out.println(bestScore);
+		}
 	}
 
 	private List<ScheduleChoice[]> getAllScheduleChoicePermutationNeighbors(
 			ScheduleChoice[] currentState, Room[] rooms, int examPeriod,
 			int times) {
 		List<ScheduleChoice[]> neighbors = new ArrayList<ScheduleChoice[]>();
-		
+
 		for (int i = 0; i < currentState.length; i++) {
 			ScheduleChoice choice = currentState[i];
 			Course course = choice.getCourse();
@@ -108,7 +153,7 @@ public class Scheduler1 implements Scheduler {
 			int day = choice.getDay();
 			int timeSlot = choice.getTimeSlot();
 			ScheduleChoice permutedChoice;
-			
+
 			for (int j = 0; j < rooms.length; j++) {
 				if (!room.equals(rooms[j])) {
 					ScheduleChoice[] newState = new ScheduleChoice[currentState.length];
@@ -218,6 +263,21 @@ public class Scheduler1 implements Scheduler {
 			choiceList[i] = choice;
 		}
 		return choiceList;
+	}
+
+	private boolean equalScheduleChoice(ScheduleChoice[] a, ScheduleChoice[] b) {
+		for (int i = 0; i < a.length; i++) {
+			if (!equalScheduleChoice(a[i], b[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private boolean equalScheduleChoice(ScheduleChoice a, ScheduleChoice b) {
+		return (a.getCourse() == b.getCourse() && a.getDay() == b.getDay()
+				&& a.getRoom() == b.getRoom() && a.getTimeSlot() == b
+				.getTimeSlot());
 	}
 
 }

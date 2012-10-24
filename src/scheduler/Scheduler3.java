@@ -1,5 +1,6 @@
 package scheduler;
 
+import java.util.LinkedList;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map.Entry;
@@ -8,11 +9,12 @@ import java.util.Random;
 import java.util.TreeMap;
 
 /**
- * A stub for your first scheduler code
+ * A stub for your first scheduler code Stochastic Beam Search
  */
 public class Scheduler3 implements Scheduler {
 
 	public static final int K = 20;
+	public static final int RUNS = 300000;
 	Random r = new Random();
 	Evaluator eva = new Evaluator();
 
@@ -27,12 +29,15 @@ public class Scheduler3 implements Scheduler {
 	 * @see scheduler.Scheduler#schedule(scheduler.SchedulingProblem)
 	 */
 	public ScheduleChoice[] schedule(SchedulingProblem pProblem) {
-		ScheduleChoice[] first = null;
+		LinkedList<ScheduleChoice[]> tabuList = new LinkedList<ScheduleChoice[]>();
+		ScheduleChoice[] currentState, bestSoFar;
 		Course[] courses = pProblem.getCourseList();
 		Room[] rooms = pProblem.getRoomList();
 		pProblem.getExamPeriod();
 		int examPeriod = pProblem.getExamPeriod();
 		int times = ScheduleChoice.times.length;
+		int bestScore, neighborScoreSum;
+		int run = 0;
 		int k = K;
 
 		// shrink N if it is larger than the number of distinct permutations
@@ -46,26 +51,27 @@ public class Scheduler3 implements Scheduler {
 		}
 		List<ScheduleChoice[]> pop = new ArrayList<ScheduleChoice[]>();
 		List<ScheduleChoice[]> neighbors;
-		ProbabilisticMap<ScheduleChoice[]> probPop = new ProbabilisticMap<ScheduleChoice[]>();
-		first = randomStartState(courses, rooms, examPeriod, times);
-		int bestScore = eva.violatedConstraints(pProblem, first);
-		ScheduleChoice[] bestSoFar = first;
-		pop.add(first);
-		while (pop.size() != 0) {
+		bestSoFar = currentState = randomStartState(courses, rooms, examPeriod,
+				times);
+		bestScore = eva.violatedConstraints(pProblem, currentState);
+		pop.add(currentState);
+		while (pop.size() != 0 && run < RUNS) {
 
 			// Get all neighbors of all individuals in population
-			probPop.clear();
+			neighborScoreSum = 0;
 			for (ScheduleChoice[] individual : pop) {
 				neighbors = getAllScheduleChoicePermutationNeighbors(
 						individual, rooms, examPeriod, times);
+				int[] scores = new int[neighbors.size()];
 				// Calculate sum of all scores
-				for (ScheduleChoice[] neighbor : neighbors) {
-					int score = eva.violatedConstraints(pProblem, neighbor);
-					if (score < bestScore) {
+				for (int i = 0; i < neighbors.size(); i++) {
+					ScheduleChoice[] neighbor = neighbors.get(i);
+					scores[i] = eva.violatedConstraints(pProblem, neighbor);
+					neighborScoreSum += 0;
+					if (scores[i] < bestScore) {
 						bestSoFar = neighbor;
-						bestScore = score;
+						bestScore = scores[i];
 					}
-					probPop.add(score, neighbor);
 				}
 			}
 
@@ -76,10 +82,11 @@ public class Scheduler3 implements Scheduler {
 				pop.add(probPop.remove());
 			}
 
-			//System.out.println(bestScore);
+			// System.out.println(bestScore);
 			if (bestScore == 0) {
 				return bestSoFar;
 			}
+			run++;
 		}
 
 		return bestSoFar;
